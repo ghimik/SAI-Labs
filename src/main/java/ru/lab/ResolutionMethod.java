@@ -155,23 +155,34 @@ public class ResolutionMethod {
         Formula applyDistributivity() {
             if (type.equals("var")) return this;
 
-            if (type.equals("or")) {
-                if (right.type.equals("and")) {
-                    return new Formula("and",
-                            new Formula("or", left, right.left).applyDistributivity(),
-                            new Formula("or", left, right.right).applyDistributivity());
-                }
-
-                if (left.type.equals("and")) {
-                    return new Formula("and",
-                            new Formula("or", left.left, right).applyDistributivity(),
-                            new Formula("or", left.right, right).applyDistributivity());
-                }
-            }
-
             Formula newLeft = (left != null) ? left.applyDistributivity() : null;
             Formula newRight = (right != null) ? right.applyDistributivity() : null;
-            return new Formula(type, newLeft, newRight);
+            Formula result = new Formula(type, newLeft, newRight);
+
+            if (type.equals("or")) {
+                boolean changed;
+                do {
+                    changed = false;
+
+                    if (result.right.type.equals("and")) {
+                        result = new Formula("and",
+                                new Formula("or", result.left, result.right.left),
+                                new Formula("or", result.left, result.right.right));
+                        changed = true;
+                    } else if (result.left.type.equals("and")) {
+                        result = new Formula("and",
+                                new Formula("or", result.left.left, result.right),
+                                new Formula("or", result.left.right, result.right));
+                        changed = true;
+                    }
+
+                    if (changed) {
+                        result = result.applyDistributivity();
+                    }
+                } while (changed);
+            }
+
+            return result;
         }
 
         Formula toCNF() {
@@ -217,10 +228,12 @@ public class ResolutionMethod {
             if (type.equals("var")) return var;
             if (type.equals("not")) return "¬" + left;
 
-            String op = "";
-            if (type.equals("and")) op = " ∧ ";
-            else if (type.equals("or")) op = " ∨ ";
-            else if (type.equals("impl")) op = " → ";
+            String op = switch (type) {
+                case "and" -> " ∧ ";
+                case "or" -> " ∨ ";
+                case "impl" -> " → ";
+                default -> "";
+            };
 
             return "(" + left + op + right + ")";
         }
@@ -253,26 +266,28 @@ public class ResolutionMethod {
     }
 
     public static void main(String[] args) {
+        System.out.println("Утверждение:");
+        System.out.println("1. Ни один человек не является четвероногим: P -> ¬Q = ¬P ∨ ¬Q");
+        System.out.println("2. Все дети это люди: C → P = ¬C v P");
+        System.out.println("Доказать: Дети не являются четвероногими: C → ¬Q = ¬C ∨ ¬Q ");
 
-        System.out.println("Из (A and B) следует A");
-        Formula kb1 = new Formula("and", new Formula("A"), new Formula("B"));
-        Formula theorem1 = new Formula("A");
+        Formula premise1 = new Formula("or",
+                new Formula("not", new Formula("P"), null),
+                new Formula("not", new Formula("Q"), null));
 
-        proveTheorem(kb1, theorem1);
+        Formula premise2 = new Formula("or",
+                new Formula("not", new Formula("C"), null),
+                new Formula("P"));
 
-        System.out.println("\n---\n");
+        Formula knowledgeBase = new Formula("and", premise1, premise2);
 
-        System.out.println("Из ((A and B) implies C) and (A and C) and B следует C");
-        Formula kb2 = new Formula("and",
-                new Formula("and",
-                        new Formula("impl",
-                                new Formula("and", new Formula("A"), new Formula("B")),
-                                new Formula("C")),
-                        new Formula("and", new Formula("A"), new Formula("C"))),
-                new Formula("B"));
-        Formula theorem2 = new Formula("C");
+        Formula conclusion = new Formula("or",
+                new Formula("not", new Formula("C"), null),
+                new Formula("not", new Formula("Q"), null));
 
-        proveTheorem(kb2, theorem2);
+        proveTheorem(knowledgeBase, conclusion);
+
+        System.out.println("Должно быть: СЛЕДУЕТ");
     }
 
     private static void proveTheorem(Formula kb1, Formula theorem1) {
